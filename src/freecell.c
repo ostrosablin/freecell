@@ -355,6 +355,8 @@ usage() {
 	printf("\n");
 	printf("-sABCD   --suites ABCD  Configures four characters as suite symbols.\n");
 	printf("\n");
+	printf("-e       --exitcode     Return exit code 1 if game was not won.\n");
+	printf("\n");
 	printf("-h       --help         Displays this information.\n");
 	printf("-V       --version      Displays brief version information.\n");
 	exit(0);
@@ -365,14 +367,16 @@ int main(int argc, char **argv) {
 		{"help", 0, 0, 'h'},
 		{"version", 0, 0, 'V'},
 		{"suites", 1, 0, 's'},
+		{"exitcode", 0, 0, 'h'},
 		{0, 0, 0, 0}
 	};
 	int running = 1;
 	int opt;
 	int i;
+	int exitcode = 0;
 
 	do {
-		opt = getopt_long(argc, argv, "hVs:", longopts, 0);
+		opt = getopt_long(argc, argv, "hVse:", longopts, 0);
 		switch(opt) {
 			case 0:
 			case 'h':
@@ -390,6 +394,9 @@ int main(int argc, char **argv) {
 					snprintf(buf, sizeof(buf), "%c", optarg[i]);
 					suitesymbols[i] = strdup(buf);
 				}
+				break;
+			case 'e':
+				exitcode = 1;
 				break;
 		}
 	} while(opt >= 0);
@@ -628,5 +635,5 @@ int main(int argc, char **argv) {
 		}
 	}
 	endwin();
-	return 0;
+	return exitcode && !running;
 }
