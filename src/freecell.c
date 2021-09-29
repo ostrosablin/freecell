@@ -31,7 +31,7 @@ struct undo {
 	struct card *work[4], *pile[4];
 } *history = 0;
 
-char *suitesymbols[] = {"s", "h", "c", "d"};
+char *suitesymbols[] = {"S", "H", "C", "D"};
 
 struct card deck[52];
 struct column column[8];
@@ -70,10 +70,35 @@ void newgame() {
 	wselected = 0;
 }
 
+void card_print(char * buf, size_t bufsize, int value, int kind) {
+	char valuechar;
+
+	switch (value) {
+		case 1:
+			valuechar = 'A';
+			break;
+		case 10:
+			valuechar = 'T';
+			break;
+		case 11:
+			valuechar = 'J';
+			break;
+		case 12:
+			valuechar = 'Q';
+			break;
+		case 13:
+			valuechar = 'K';
+			break;
+		default:
+			valuechar = 48 + value;
+	}
+	snprintf(buf, bufsize, "%c%s", valuechar, suitesymbols[kind]);
+}
+
 void cardstr(struct card *c, int sel) {
 	char buf[16];
 
-	snprintf(buf, sizeof(buf), "%2d%s", c->value, suitesymbols[c->kind]);
+	card_print(buf, sizeof(buf), c->value, c->kind);
 	if(c->kind & 1) {
 		if(sel) {
 			attrset(COLOR_PAIR(3));
