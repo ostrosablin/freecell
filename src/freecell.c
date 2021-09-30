@@ -568,15 +568,18 @@ int main(int argc, char **argv) {
 				int may = 0;
 
 				if(selected) {
-					int nfree = 0, i;
+					int nfree = 1, mfree = 0, i;
 
 					for(i = 0; i < 4; i++) {
 						if(!work[i]) nfree++;
 					}
 					for(i = 0; i < 8; i++) {
-						if(!column[i].ncard) nfree++;
+						if(!column[i].ncard) mfree++;
 					}
-					if(nfree >= seln - 1 + !col->ncard) {
+					if (mfree &&  !col->ncard) mfree--;
+					mfree = 1 << mfree;
+					nfree = mfree * nfree;
+					if(nfree >= seln) {
 						int first = column[selcol].ncard - seln;
 						struct card *card = column[selcol].card[first];
 
