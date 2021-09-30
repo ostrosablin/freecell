@@ -19,11 +19,22 @@
 #include <stdlib.h>
 #include <string.h>
 #include <getopt.h>
+#include <time.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <ncurses.h>
 
 #include "freecell.h"
 
 #define RELEASE VERSION
+
+#define SOLVER_SOLVABLE 0
+#define SOLVER_UNSOLVABLE 1
+#define SOLVER_INTRACTABLE 2
+#define SOLVER_ERROR 3
+#define SOLVER_WORKING 4
+#define SOLVER_NOTINSTALLED 5
+#define SOLVER_DISABLED 6
 
 struct undo {
 	struct undo *next;
@@ -32,6 +43,8 @@ struct undo {
 } *history = 0;
 
 char *suitesymbols[] = {"S", "H", "C", "D"};
+char *solversuitesymbols[] = {"S", "H", "C", "D"};
+const char *solverstatus[] = {"Solvable", "Unsolvable", "Intractable", "Error", "Working...", "Not Installed", "Disabled"};
 
 struct card deck[52];
 struct column column[8];
@@ -44,6 +57,8 @@ int face = 0;
 int arg = 0;
 
 int selected = 0, wselected = 0, selcol, seln;
+
+int solver = SOLVER_DISABLED;
 
 unsigned int seed;
 
@@ -70,29 +85,31 @@ void newgame() {
 	wselected = 0;
 }
 
-void card_print(char * buf, size_t bufsize, int value, int kind) {
+char value_to_char(int value) {
 	char valuechar;
 
 	switch (value) {
 		case 1:
-			valuechar = 'A';
-			break;
+			return 'A';
 		case 10:
-			valuechar = 'T';
-			break;
+			return 'T';
 		case 11:
-			valuechar = 'J';
-			break;
+			return 'J';
 		case 12:
-			valuechar = 'Q';
-			break;
+			return 'Q';
 		case 13:
-			valuechar = 'K';
-			break;
+			return 'K';
 		default:
-			valuechar = 48 + value;
+			return (char)(48 + value);
 	}
-	snprintf(buf, bufsize, "%c%s", valuechar, suitesymbols[kind]);
+}
+
+int card_print(char * buf, size_t bufsize, int value, int kind) {
+	return snprintf(buf, bufsize, "%c%s", value_to_char(value), suitesymbols[kind]);
+}
+
+int solver_card_print(char * buf, size_t bufsize, int value, int kind) {
+	return snprintf(buf, bufsize, "%c%s", value_to_char(value), solversuitesymbols[kind]);
 }
 
 void cardstr(struct card *c, int sel) {
@@ -177,8 +194,126 @@ void render() {
 	mvaddch(6 + height, 5, 'u');
 	mvaddch(6 + height, 10, '?');
 	attrset(A_NORMAL);
+	if (solver != SOLVER_DISABLED) {
+		snprintf(buf, sizeof(buf), "Solver: %s", solverstatus[solver]);
+		mvaddstr(7 + height, 0, buf);
+	}
 	move(5 + height, 43);
 	refresh();
+}
+
+size_t board_to_fcsolve(char *buf) {
+	int i, height, c;
+	size_t offset = 0;
+
+	offset += snprintf(buf+offset, 256-offset, "Foundations: ");
+	for(i = 0; i < 4; i++) {
+		char value = '0';
+		if(pile[i]) {
+			value = value_to_char(pile[i]->value);
+		}
+		offset += snprintf(buf+offset, 256-offset, "%c-%c%c", solversuitesymbols[i][0], value, (i!=3) ? ' ': '\n');
+	}
+	offset += snprintf(buf+offset, 256-offset, "Freecells: ");
+	for(i = 0; i < 4; i++) {
+		if(work[i]) {
+			offset += solver_card_print(buf+offset, 256-offset, work[i]->value, work[i]->kind);
+			offset += snprintf(buf+offset, 256-offset, "%c", (i!=3) ? ' ': '\n');
+		}
+		else
+			offset += snprintf(buf+offset, 256-offset, "-%c", (i!=3) ? ' ': '\n');
+	}
+	height = 0;
+	for(c = 0; c < 8; c++) {
+		offset += snprintf(buf+offset, 256-offset, ": ");
+		struct column *col = &column[c];
+
+		for(i = 0; i < col->ncard; i++) {
+			offset += solver_card_print(buf+offset, 256-offset, col->card[i]->value, col->card[i]->kind);
+			offset += snprintf(buf+offset, 256-offset, "%c", (i != (col->ncard-1) ? ' ': '\n'));
+		}
+		if (col->ncard == 0)
+			offset += snprintf(buf+offset, 256-offset, "\n");
+	}
+	return offset;
+}
+
+void solveboard() {
+	char buf[256];
+	size_t size;
+	int p_stdin[2], p_stdout[2];
+	pid_t pid;
+	char *line = NULL;
+	FILE *stdout;
+	int status;
+
+	if (solver >= SOLVER_NOTINSTALLED) return;
+
+	solver = SOLVER_WORKING;
+	render();
+
+	size = board_to_fcsolve(buf);
+
+	if (pipe(p_stdin) != 0 || pipe(p_stdout) != 0) {
+		solver = SOLVER_ERROR;
+		return;
+	}
+
+	pid = fork();
+	if (pid < 0) {
+		solver = SOLVER_ERROR;
+		return;
+	}
+	else if (pid == 0)
+	{
+		close(p_stdin[1]);
+		dup2(p_stdin[0], 0);
+		close(p_stdout[0]);
+		dup2(p_stdout[1], 1);
+
+		execlp("fc-solve", "fc-solve", "-l", "toons-for-twenty-somethings", NULL);
+		perror("execlp");
+		exit(1);
+	}
+
+	close(p_stdin[0]);
+	close(p_stdout[1]);
+
+	if (write(p_stdin[1], buf, size) != size) {
+		solver = SOLVER_ERROR;
+		close(p_stdin[1]);
+		close(p_stdout[0]);
+	}
+	else {
+		close(p_stdin[1]);
+		stdout = fdopen(p_stdout[0], "r");
+
+		solver = SOLVER_INTRACTABLE;
+		while (getline(&line, &size, stdout) != -1) {
+			if (strcmp("This game is solveable.\n", line) == 0) {
+				solver = SOLVER_SOLVABLE;
+			}
+			else if (strcmp("I could not solve this game.\n", line) == 0) {
+				solver = SOLVER_UNSOLVABLE;
+			}
+		}
+		if (line) {
+			free(line);
+		}
+		if (!feof(stdout)) {
+			solver = SOLVER_ERROR;
+		}
+		fclose(stdout);
+	}
+
+	if (pid != wait(&status)) {
+		solver = SOLVER_ERROR;
+	}
+
+	status = WEXITSTATUS(status);
+	if (status) {
+		solver = SOLVER_ERROR;
+	}
 }
 
 int mayautomove(struct card *c) {
@@ -372,13 +507,15 @@ void helpscreen() {
 	getch();
 }
 
-usage() {
+void usage() {
 	printf("freecell " RELEASE " by Linus Akesson\n");
 	printf("http://www.linusakesson.net\n");
 	printf("\n");
 	printf("Usage: freecell [options] [game#]\n");
 	printf("\n");
 	printf("-sABCD   --suites ABCD  Configures four characters as suite symbols.\n");
+	printf("\n");
+	printf("-S       --solver       Use fc-solve to check if board is solvable.\n");
 	printf("\n");
 	printf("-e       --exitcode     Return exit code 1 if game was not won.\n");
 	printf("\n");
@@ -391,17 +528,19 @@ int main(int argc, char **argv) {
 	struct option longopts[] = {
 		{"help", 0, 0, 'h'},
 		{"version", 0, 0, 'V'},
+		{"exitcode", 0, 0, 'e'},
+		{"solver", 0, 0, 'S'},
 		{"suites", 1, 0, 's'},
-		{"exitcode", 0, 0, 'h'},
 		{0, 0, 0, 0}
 	};
 	int running = 1;
 	int opt;
 	int i;
 	int exitcode = 0;
+	int needssolving = 1;
 
 	do {
-		opt = getopt_long(argc, argv, "hVse:", longopts, 0);
+		opt = getopt_long(argc, argv, "hVeSs:", longopts, 0);
 		switch(opt) {
 			case 0:
 			case 'h':
@@ -422,6 +561,18 @@ int main(int argc, char **argv) {
 				break;
 			case 'e':
 				exitcode = 1;
+				break;
+			case 'S':
+				switch (WEXITSTATUS(system("fc-solve --version >/dev/null 2>&1"))) {
+					case 127:
+						solver = SOLVER_NOTINSTALLED;
+					case 0:
+						setenv("FREECELL_SOLVER_QUIET", "1", 1);
+						solver = SOLVER_WORKING;
+						break;
+					default:
+						solver = SOLVER_ERROR;
+				}
 				break;
 		}
 	} while(opt >= 0);
@@ -452,8 +603,13 @@ int main(int argc, char **argv) {
 		int c;
 
 		for(;;) {
+			if (needssolving) {
+				solveboard();
+				needssolving = 0;
+			}
 			render();
 			if(automove()) {
+				needssolving = 1;
 				usleep(50000);
 			} else {
 				break;
@@ -515,6 +671,7 @@ int main(int argc, char **argv) {
 				wselected = 0;
 			} else if(c == 'u') {
 				popundo();
+				needssolving = 1;
 			} else if(c == '?') {
 				helpscreen();
 			} else if(c == 10 || c == 13 || c == KEY_ENTER) {
@@ -539,6 +696,7 @@ int main(int argc, char **argv) {
 							pushundo();
 							pile[card->kind] = card;
 							col->ncard--;
+							needssolving = 1;
 						}
 					}
 					selected = 0;
@@ -558,6 +716,7 @@ int main(int argc, char **argv) {
 							pushundo();
 							pile[card->kind] = card;
 							work[selcol] = 0;
+							needssolving = 1;
 						}
 					}
 					wselected = 0;
@@ -594,6 +753,7 @@ int main(int argc, char **argv) {
 								col->card[col->ncard++] = column[selcol].card[first + i];
 							}
 							column[selcol].ncard -= seln;
+							needssolving = 1;
 						}
 					}
 					selected = 0;
@@ -610,6 +770,7 @@ int main(int argc, char **argv) {
 						pushundo();
 						col->card[col->ncard++] = work[selcol];
 						work[selcol] = 0;
+						needssolving = 1;
 					}
 					wselected = 0;
 				} else {
@@ -642,6 +803,7 @@ int main(int argc, char **argv) {
 						pushundo();
 						work[w] = col->card[col->ncard - 1];
 						col->ncard--;
+						needssolving = 1;
 					}
 					selected = 0;
 				} else if(wselected) {
@@ -649,6 +811,7 @@ int main(int argc, char **argv) {
 						pushundo();
 						work[w] = work[selcol];
 						work[selcol] = 0;
+						needssolving = 1;
 					}
 					wselected = 0;
 				} else {
