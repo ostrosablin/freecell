@@ -574,9 +574,9 @@ SHELL=${CONFIG_SHELL-/bin/sh}
 # Identity of this package.
 PACKAGE_NAME='freecell'
 PACKAGE_TARNAME='freecell'
-PACKAGE_VERSION='1.0'
-PACKAGE_STRING='freecell 1.0'
-PACKAGE_BUGREPORT='linus@linusakesson.net'
+PACKAGE_VERSION='1.1'
+PACKAGE_STRING='freecell 1.1'
+PACKAGE_BUGREPORT='tmp6154@yandex.ru'
 
 ac_default_prefix=/usr/games
 # Factoring default headers for most tests.
@@ -2062,7 +2062,7 @@ fi
 
 # Define the identity of the package.
  PACKAGE='freecell'
- VERSION='1.0'
+ VERSION='1.1'
 
 
 cat >>confdefs.h <<_ACEOF

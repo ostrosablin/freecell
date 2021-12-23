@@ -18,6 +18,7 @@ And then, with following command, you'll be able to start with deal #0 and conti
 
 * Card notation was changed to be more readable, and also fc-solve compatible. E.g. 13s is now KS, 12h is now QH. I find it less confusing.
 * Improved formula for supermoves/metamoves. Original implementation considered each empty cascade as one more freecell, while more correct formula is (M^2)*(N+1), which allows to move much more cards at once as long as you have enough empty cascades and freecells. This allows to do fewer tedious explicit moves and most modern FreeCell implementations have this out-of-box.
+* Accidental quit protection. Now hitting "q" doesn't instantly terminate the game, instead it asks you to hit "q" again if you really meant to quit game.
 * Supports solvability check via fc-solve. Enable fc-solve support with -S (--solver) option. No more getting stuck with dead-end unsolvable configurations for hours. After each move, solver will check and report whether this board is still solvable, or if it is game over and you have to undo or restart.
 
 This requires to install fc-solve. You can install it on Debian/Ubuntu based distros with following command.

@@ -60,6 +60,8 @@ int selected = 0, wselected = 0, selcol, seln;
 
 int solver = SOLVER_DISABLED;
 
+int wantquit = 0;
+
 unsigned int seed;
 
 void newgame() {
@@ -196,6 +198,10 @@ void render() {
 	attrset(A_NORMAL);
 	if (solver != SOLVER_DISABLED) {
 		snprintf(buf, sizeof(buf), "Solver: %s", solverstatus[solver]);
+		mvaddstr(7 + height, 0, buf);
+	}
+	if (wantquit) {
+		snprintf(buf, sizeof(buf), "Press q again to confirm quit");
 		mvaddstr(7 + height, 0, buf);
 	}
 	move(5 + height, 43);
@@ -642,6 +648,7 @@ int main(int argc, char **argv) {
 		}
 
 		c = getch();
+		if(c != 'q' && wantquit) wantquit = 0;
 		if(c >= '0' && c <= '9') {
 			if(arg < 10 && !selected && !wselected) {
 				arg = arg * 10 + c - '0';
@@ -665,7 +672,8 @@ int main(int argc, char **argv) {
 				}
 			}
 			if(c == 'q') {
-				running = 0;
+				if (wantquit) running = 0;
+				else wantquit = 1;
 			} else if(c == 27) {
 				selected = 0;
 				wselected = 0;
