@@ -11,21 +11,40 @@ a console (ncurses) version of the popular solitaire game.
 .SH OPTIONS
 .IP "-s, --suites=ABCD"
 Configures four characters as suite symbols.
+.IP "-S, --solver"
+Use fc-solve to check if board is solvable.
+.IP "-e, --exitcode"
+Return exit code 1 if game was not won.
 .IP "-h, --help"
 Display usage information.
 .IP "-V, --version"
 Display version information.
 .SH THE CARDS
-In this game, playing cards are illustrated using a number (the value of the
-card) followed by a suite symbol. By default, these characters will be:
+In this game, playing cards are illustrated using a number or letter (the value
+of the card) followed by a suite symbol. Card values are displayed as follows:
 
-	s	Spades
+	K	King (13)
 .br
-	h	Hearts
+	Q	Queen (12)
 .br
-	c	Clubs
+	J	Jack (11)
 .br
-	d	Diamonds
+	T	Ten (10)
+.br
+	2-9	Corresponding numeric value
+.br
+	A	Ace (1)
+.br
+
+By default, suites are represented with these characters:
+
+	S	Spades
+.br
+	H	Hearts
+.br
+	C	Clubs
+.br
+	D	Diamonds
 .br
 
 You may configure freecell to use other characters, using the --suites option.
@@ -35,15 +54,15 @@ corner.
 
 You may only move one card at a time. The foundations accept cards of
 increasing value within each suite (you may place
-.B "2d"
+.B "2D"
 on top of
-.BR "1d" ")."
-The columns accept cards of falling value, different colour (you may place
-.B "2d"
+.BR "1D" ")."
+The columns accept cards of falling value, alternating colour (you may place
+.B "2D"
 on either
-.B "3s"
+.B "3S"
 or
-.BR "3c" ")."
+.BR "3C" ")."
 The four free cells in the upper left corner will accept any
 cards, but at most one card per cell.
 An empty column will also accept any card.
@@ -76,3 +95,6 @@ Modern freecell was invented by Paul Alfille in 1978.
 .br
 This implementation of freecell was written from scratch by Linus Akesson
 <linus@linusakesson.net> in 2007.
+.br
+Improved and extended fork was made by Vitaly Ostrosablin
+<tmp6154@yandex.ru> in 2021.
