@@ -277,7 +277,7 @@ void solveboard() {
 		close(p_stdout[0]);
 		dup2(p_stdout[1], 1);
 
-		execlp("fc-solve", "fc-solve", "-l", "toons-for-twenty-somethings", NULL);
+		execlp("fc-solve", "fc-solve", "-l", "looking-glass", NULL);
 		perror("execlp");
 		exit(1);
 	}
