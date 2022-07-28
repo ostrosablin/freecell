@@ -574,8 +574,8 @@ SHELL=${CONFIG_SHELL-/bin/sh}
 # Identity of this package.
 PACKAGE_NAME='freecell'
 PACKAGE_TARNAME='freecell'
-PACKAGE_VERSION='1.1'
-PACKAGE_STRING='freecell 1.1'
+PACKAGE_VERSION='1.2'
+PACKAGE_STRING='freecell 1.2'
 PACKAGE_BUGREPORT='tmp6154@yandex.ru'
 
 ac_default_prefix=/usr/games

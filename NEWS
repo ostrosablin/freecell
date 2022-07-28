@@ -1,3 +1,12 @@
+1.2	Metamove animations and customizable animation delay, support
+	highlighting next card of a suit to move to foundation.
+
+1.1	Accidental quit protection, faster solver preset is used.
+
+1.0.1	Various improvements over original: changed notation, option to return
+	non-zero exitcode on unsolved deal, improved metamove formula,
+	solver (fc-solve) support.
+
 1.0	Support for game numbers, according to the standard freecell game
 	numbering scheme.
 

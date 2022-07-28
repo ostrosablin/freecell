@@ -11,10 +11,16 @@ a console (ncurses) version of the popular solitaire game.
 .SH OPTIONS
 .IP "-s, --suites=ABCD"
 Configures four characters as suite symbols.
+.IP "-d, --delay=200000"
+Sets a delay (in microseconds) for animations.
 .IP "-S, --solver"
 Use fc-solve to check if board is solvable.
 .IP "-e, --exitcode"
 Return exit code 1 if game was not won.
+.IP "-i, --instant"
+Don't play metamove animations.
+.IP "-H, --highlight"
+Highlight next card to move to foundation.
 .IP "-h, --help"
 Display usage information.
 .IP "-V, --version"

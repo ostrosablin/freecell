@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 # AC_PREREQ(2.61)
-AC_INIT([freecell], [1.0], [linus@linusakesson.net])
+AC_INIT([freecell],[1.2],[tmp6154@yandex.ru])
 
 AM_INIT_AUTOMAKE
 
@@ -13,6 +13,7 @@ AC_PROG_CC
 
 # Checks for libraries.
 AC_CHECK_LIB([ncurses], [start_color])
+AC_SEARCH_LIBS([cbreak], [tinfo ncurses])
 
 # Checks for header files.
 AC_HEADER_STDC

@@ -36,11 +36,20 @@
 #define SOLVER_NOTINSTALLED 5
 #define SOLVER_DISABLED 6
 
+#define AUTOMOVE_DELAY 200000
+
 struct undo {
 	struct undo *next;
 	struct column column[8];
 	struct card *work[4], *pile[4];
 } *history = 0;
+
+struct move {
+	struct move *next;
+	int seln;
+	struct column *src;
+	struct column *dest;
+};
 
 char *suitesymbols[] = {"S", "H", "C", "D"};
 char *solversuitesymbols[] = {"S", "H", "C", "D"};
@@ -61,6 +70,10 @@ int selected = 0, wselected = 0, selcol, seln;
 int solver = SOLVER_DISABLED;
 
 int wantquit = 0;
+
+int highlightnext = 0;
+int animate = 1;
+int automove_delay = AUTOMOVE_DELAY;
 
 unsigned int seed;
 
@@ -127,8 +140,15 @@ void cardstr(struct card *c, int sel) {
 	} else {
 		if(sel) {
 			attrset(COLOR_PAIR(2));
+		} else {
+			attrset(COLOR_PAIR(5));
 		}
 	}
+
+	int n = pile[c->kind] ? pile[c->kind]->value + 1 : 1;
+	if(c->value == n && highlightnext)
+		attron(A_BOLD | A_UNDERLINE);
+
 	addstr(buf);
 	attrset(A_NORMAL);
 }
@@ -209,7 +229,7 @@ void render() {
 }
 
 size_t board_to_fcsolve(char *buf) {
-	int i, height, c;
+	int i, c;
 	size_t offset = 0;
 
 	offset += snprintf(buf+offset, 256-offset, "Foundations: ");
@@ -229,7 +249,6 @@ size_t board_to_fcsolve(char *buf) {
 		else
 			offset += snprintf(buf+offset, 256-offset, "-%c", (i!=3) ? ' ': '\n');
 	}
-	height = 0;
 	for(c = 0; c < 8; c++) {
 		offset += snprintf(buf+offset, 256-offset, ": ");
 		struct column *col = &column[c];
@@ -416,6 +435,133 @@ void popundo() {
 	arg = 0;
 }
 
+void pushmove(struct move **movelist, struct column *scol, int seln, struct column *dcol) {
+	struct move *m = malloc(sizeof(struct move));
+
+	m->next = *movelist;
+	m->src = scol;
+	m->seln = seln;
+	m->dest = dcol;
+	*movelist = m;
+}
+
+struct move* popmove(struct move **movelist) {
+	struct move *m = *movelist;
+
+	if(m) *movelist = m->next;
+	return m;
+}
+
+int popcount(int number) {
+	int count = 0;
+	while (number != 0) {
+		if (number & 1) count++;
+		number >>= 1;
+	}
+	return count;
+}
+
+int rightmostbit(int word) {
+	int pos = 0;
+	while (word) {
+		if (word & 1)
+			return pos;
+		word >>= 1;
+		pos++;
+	}
+	return -1;
+}
+
+void metamove(struct column *scol, int seln, struct column *dcol, int *freecells, int freecolumns) {
+	int nfree = 0;
+	int mfree = 0;
+	int submove = 0;
+	int tempmove = 0;
+	int nextcol = 0;
+	int nseln = 0;
+	int ncol = 0;
+	struct move *tempmovelist = 0;
+	nfree = popcount(*freecells) + 1;
+	mfree = popcount(freecolumns);
+	submove = seln - nfree;
+
+
+	while (submove > 0) {
+		if (submove <= mfree * nfree)
+		{
+			tempmove = (submove + mfree - 1) / mfree;
+		}
+		else
+		{
+			tempmove = nfree;
+			while (tempmove * 2 < submove)
+				tempmove *= 2;
+		}
+
+		nseln = 0;
+		for (int i = 0; i < tempmove; i++) {
+			seln--;
+			nseln++;
+		}
+
+		nextcol = rightmostbit(freecolumns);
+		freecolumns &= ~(1 << nextcol);
+
+		pushmove(&tempmovelist, &column[nextcol], nseln, dcol);
+		metamove(scol, nseln, &column[nextcol], freecells, freecolumns);
+
+		submove -= tempmove;
+	}
+
+	for (int i = 0; i < seln - 1; i++) {
+		for(int j = 0; j < 4; j++) {
+			if(!work[j]) {
+				work[j] = scol->card[scol->ncard - 1];
+				scol->ncard--;
+				render();
+				usleep(automove_delay);
+				break;
+			}
+		}
+	}
+
+	dcol->card[dcol->ncard++] = scol->card[--(scol->ncard)];
+	render();
+	usleep(automove_delay);
+
+	for(int i = 3; i >= 0; i--) {
+		if(*freecells >> i & 1 && work[i]) {
+			dcol->card[dcol->ncard++] = work[i];
+			work[i] = 0;
+			render();
+			usleep(automove_delay);
+		}
+	}
+
+	if (!scol->ncard) {
+		for(int i = 0; i < 8; i--) {
+			if(&column[i] == dcol) {
+				freecolumns |= (1 << i);
+				break;
+			}
+		}
+	}
+
+	while (tempmovelist)
+	{
+		struct move *m = 0;
+		m = popmove(&tempmovelist);
+		metamove(m->src, m->seln, dcol, freecells, freecolumns);
+		for(int i = 7; i >= 0; i--) {
+			if(&column[i] == m->dest) {
+				freecolumns |= (1 << i);
+				break;
+			}
+		}
+		free(m);
+	}
+}
+
 void helpscreen() {
 	erase();
 	mvaddstr(0, 0, "freecell " RELEASE);
@@ -521,9 +667,15 @@ void usage() {
 	printf("\n");
 	printf("-sABCD   --suites ABCD  Configures four characters as suite symbols.\n");
 	printf("\n");
+	printf("-d50000  --delay 50000  Set animation delay (in microseconds).\n");
+	printf("\n");
 	printf("-S       --solver       Use fc-solve to check if board is solvable.\n");
 	printf("\n");
 	printf("-e       --exitcode     Return exit code 1 if game was not won.\n");
+	printf("\n");
+	printf("-i       --instant      Don't animate metamoves.\n");
+	printf("\n");
+	printf("-H       --highlight    Highlight next card to move to foundation.\n");
 	printf("\n");
 	printf("-h       --help         Displays this information.\n");
 	printf("-V       --version      Displays brief version information.\n");
@@ -536,7 +688,10 @@ int main(int argc, char **argv) {
 		{"version", 0, 0, 'V'},
 		{"exitcode", 0, 0, 'e'},
 		{"solver", 0, 0, 'S'},
+		{"instant", 0, 0, 'i'},
+		{"highlight", 0, 0, 'H'},
 		{"suites", 1, 0, 's'},
+		{"delay", 1, 0, 'd'},
 		{0, 0, 0, 0}
 	};
 	int running = 1;
@@ -546,7 +701,7 @@ int main(int argc, char **argv) {
 	int needssolving = 1;
 
 	do {
-		opt = getopt_long(argc, argv, "hVeSs:", longopts, 0);
+		opt = getopt_long(argc, argv, "hVeSiHs:d:", longopts, 0);
 		switch(opt) {
 			case 0:
 			case 'h':
@@ -565,8 +720,17 @@ int main(int argc, char **argv) {
 					suitesymbols[i] = strdup(buf);
 				}
 				break;
+			case 'd':
+				automove_delay = atoi(optarg);
+				break;
 			case 'e':
 				exitcode = 1;
+				break;
+			case 'i':
+				animate = 0;
+				break;
+			case 'H':
+				highlightnext = 1;
 				break;
 			case 'S':
 				switch (WEXITSTATUS(system("fc-solve --version >/dev/null 2>&1"))) {
@@ -601,10 +765,12 @@ int main(int argc, char **argv) {
 	curs_set(0);
 	start_color();
 	keypad(stdscr, TRUE);
-	init_pair(1, COLOR_CYAN, COLOR_BLACK);
+	use_default_colors();
+	init_pair(1, COLOR_CYAN, -1);
 	init_pair(2, COLOR_WHITE, COLOR_BLUE);
 	init_pair(3, COLOR_CYAN, COLOR_BLUE);
-	init_pair(4, COLOR_YELLOW, COLOR_BLACK);
+	init_pair(4, COLOR_YELLOW, -1);
+	init_pair(5, COLOR_WHITE, -1);
 	while(running) {
 		int c;
 
@@ -616,7 +782,7 @@ int main(int argc, char **argv) {
 			render();
 			if(automove()) {
 				needssolving = 1;
-				usleep(50000);
+				usleep(automove_delay);
 			} else {
 				break;
 			}
@@ -630,7 +796,7 @@ int main(int argc, char **argv) {
 			mvaddstr(3, 17, str);
 			move(5, 43);
 			refresh();
-			usleep(50000);
+			usleep(automove_delay);
 			for(i = 0; i < strlen(str); i++) {
 				attrset(A_BOLD | COLOR_PAIR(4));
 				if(i) mvaddch(3, 17 + i - 1, str[i - 1]);
@@ -757,10 +923,26 @@ int main(int argc, char **argv) {
 						&& (card->value + 1 != col->card[col->ncard - 1]->value)) may = 0;
 						if(may) {
 							pushundo();
-							for(i = 0; i < seln; i++) {
-								col->card[col->ncard++] = column[selcol].card[first + i];
+							if (seln > 1 && animate) {
+								int freecells = 0;
+								int freecolumns = 0;
+								selected = 0;
+								for(int i = 3; i >= 0; i--) {
+									freecells <<= 1;
+									if(!work[i]) freecells |= 1;
+								}
+								for(int i = 7; i >= 0; i--) {
+									freecolumns <<= 1;
+									if(!column[i].ncard && &column[i] != col) freecolumns |= 1;
+								}
+								metamove(&column[selcol], seln, col, &freecells, freecolumns);
 							}
-							column[selcol].ncard -= seln;
+							else {
+								for(i = 0; i < seln; i++) {
+									col->card[col->ncard++] = column[selcol].card[first + i];
+								}
+								column[selcol].ncard -= seln;
+							}
 							needssolving = 1;
 						}
 					}
