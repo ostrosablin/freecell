@@ -1,6 +1,8 @@
 # freecell
 ## Fork with improvements over ncurses freecell implementation by Linus Akesson
 
+![freecell](https://github.com/tmp6154/freecell/blob/master/doc/screenshot.png?raw=true "freecell")
+
 This is fork of freecell-1.0 by Linus Akesson:
 
 https://www.linusakesson.net/software/freecell.php
