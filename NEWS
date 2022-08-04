@@ -1,3 +1,5 @@
+1.2.1	Add support for highlighting adjacent cards to current selection, too.
+
 1.2	Metamove animations and customizable animation delay, support
 	highlighting next card of a suit to move to foundation.
 

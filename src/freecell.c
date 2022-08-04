@@ -48,7 +48,6 @@ struct move {
 	struct move *next;
 	int seln;
 	struct column *src;
-	struct column *dest;
 };
 
 char *suitesymbols[] = {"S", "H", "C", "D"};
@@ -71,8 +70,10 @@ int solver = SOLVER_DISABLED;
 
 int wantquit = 0;
 
-int highlightnext = 0;
+int highlight = 0;
+int adjacent = 0;
 int animate = 1;
+int skipdelay = 0;
 int automove_delay = AUTOMOVE_DELAY;
 
 unsigned int seed;
@@ -101,8 +102,6 @@ void newgame() {
 }
 
 char value_to_char(int value) {
-	char valuechar;
-
 	switch (value) {
 		case 1:
 			return 'A';
@@ -145,9 +144,30 @@ void cardstr(struct card *c, int sel) {
 		}
 	}
 
-	int n = pile[c->kind] ? pile[c->kind]->value + 1 : 1;
-	if(c->value == n && highlightnext)
-		attron(A_BOLD | A_UNDERLINE);
+	if (highlight) {
+		if ((!wselected && !selected) || !adjacent) {
+			int n = pile[c->kind] ? pile[c->kind]->value + 1 : 1;
+			if(c->value == n)
+				attron(A_BOLD | A_UNDERLINE);
+		}
+	}
+	if (adjacent) {
+		if (wselected && (c->kind & 1) != (work[selcol]->kind & 1)) {
+			if (c->value == work[selcol]->value + 1 ||
+				c->value == work[selcol]->value - 1) {
+				attron(A_BOLD | A_UNDERLINE);
+			}
+		}
+
+		if (selected) {
+			if ((c->kind & 1) != (column[selcol].card[column[selcol].ncard - seln]->kind & 1)) {
+				if (c->value == column[selcol].card[column[selcol].ncard - seln]->value + 1 ||
+					c->value == column[selcol].card[column[selcol].ncard - seln]->value - 1) {
+					attron(A_BOLD | A_UNDERLINE);
+				}
+			}
+		}
+	}
 
 	addstr(buf);
 	attrset(A_NORMAL);
@@ -217,8 +237,16 @@ void render() {
 	mvaddch(6 + height, 10, '?');
 	attrset(A_NORMAL);
 	if (solver != SOLVER_DISABLED) {
+		if (!solver) {
+			attrset(COLOR_PAIR(7));
+		} else if (solver == 2 || solver == 4) {
+			attrset(COLOR_PAIR(4));
+		} else {
+			attrset(COLOR_PAIR(6));
+		}
 		snprintf(buf, sizeof(buf), "Solver: %s", solverstatus[solver]);
 		mvaddstr(7 + height, 0, buf);
+		attrset(A_NORMAL);
 	}
 	if (wantquit) {
 		snprintf(buf, sizeof(buf), "Press q again to confirm quit");
@@ -441,7 +469,6 @@ void pushmove(struct move **movelist, struct column *scol, int seln, struct colu
 	m->next = *movelist;
 	m->src = scol;
 	m->seln = seln;
-	m->dest = dcol;
 	*movelist = m;
 }
 
@@ -480,6 +507,7 @@ void metamove(struct column *scol, int seln, struct column *dcol, int *freecells
 	int nextcol = 0;
 	int nseln = 0;
 	int ncol = 0;
+	skipdelay = 1;
 	struct move *tempmovelist = 0;
 	nfree = popcount(*freecells) + 1;
 	mfree = popcount(freecolumns);
@@ -505,6 +533,7 @@ void metamove(struct column *scol, int seln, struct column *dcol, int *freecells
 		}
 
 		nextcol = rightmostbit(freecolumns);
+		nextcol = (nextcol >= 0)? nextcol : 0;
 		freecolumns &= ~(1 << nextcol);
 
 		pushmove(&tempmovelist, &column[nextcol], nseln, dcol);
@@ -553,7 +582,7 @@ void metamove(struct column *scol, int seln, struct column *dcol, int *freecells
 		m = popmove(&tempmovelist);
 		metamove(m->src, m->seln, dcol, freecells, freecolumns);
 		for(int i = 7; i >= 0; i--) {
-			if(&column[i] == m->dest) {
+			if(&column[i] == m->src) {
 				freecolumns |= (1 << i);
 				break;
 			}
@@ -647,7 +676,7 @@ void helpscreen() {
 	mvaddstr(3, 0, "automatically  be  moved  to  the foundation");
 	mvaddstr(4, 0, "piles.");
 	mvaddstr(6, 0, "Modern freecell was invented by Paul Alfille");
-	mvaddstr(7, 0, "in 1978 - http://wikipedia.org/wiki/Freecell");
+	mvaddstr(7, 0, "in 1978: https://wikipedia.org/wiki/Freecell");
 	mvaddstr(8, 0, "Almost every game is solvable, but the level");
 	mvaddstr(9, 0, "of difficulty can vary a lot.");
 	attrset(COLOR_PAIR(4));
@@ -661,7 +690,7 @@ void helpscreen() {
 
 void usage() {
 	printf("freecell " RELEASE " by Linus Akesson\n");
-	printf("http://www.linusakesson.net\n");
+	printf("https://www.linusakesson.net\n");
 	printf("\n");
 	printf("Usage: freecell [options] [game#]\n");
 	printf("\n");
@@ -675,7 +704,9 @@ void usage() {
 	printf("\n");
 	printf("-i       --instant      Don't animate metamoves.\n");
 	printf("\n");
-	printf("-H       --highlight    Highlight next card to move to foundation.\n");
+	printf("-H       --highlight    Highlight next cards to move to foundation.\n");
+	printf("\n");
+	printf("-a       --adjacent     Highlight cards adjacent to current selection.\n");
 	printf("\n");
 	printf("-h       --help         Displays this information.\n");
 	printf("-V       --version      Displays brief version information.\n");
@@ -690,6 +721,7 @@ int main(int argc, char **argv) {
 		{"solver", 0, 0, 'S'},
 		{"instant", 0, 0, 'i'},
 		{"highlight", 0, 0, 'H'},
+		{"adjacent", 0, 0, 'a'},
 		{"suites", 1, 0, 's'},
 		{"delay", 1, 0, 'd'},
 		{0, 0, 0, 0}
@@ -701,7 +733,7 @@ int main(int argc, char **argv) {
 	int needssolving = 1;
 
 	do {
-		opt = getopt_long(argc, argv, "hVeSiHs:d:", longopts, 0);
+		opt = getopt_long(argc, argv, "hVeSiHas:d:", longopts, 0);
 		switch(opt) {
 			case 0:
 			case 'h':
@@ -730,7 +762,10 @@ int main(int argc, char **argv) {
 				animate = 0;
 				break;
 			case 'H':
-				highlightnext = 1;
+				highlight = 1;
+				break;
+			case 'a':
+				adjacent = 1;
 				break;
 			case 'S':
 				switch (WEXITSTATUS(system("fc-solve --version >/dev/null 2>&1"))) {
@@ -771,6 +806,8 @@ int main(int argc, char **argv) {
 	init_pair(3, COLOR_CYAN, COLOR_BLUE);
 	init_pair(4, COLOR_YELLOW, -1);
 	init_pair(5, COLOR_WHITE, -1);
+	init_pair(6, COLOR_RED, -1);
+	init_pair(7, COLOR_GREEN, -1);
 	while(running) {
 		int c;
 
@@ -782,8 +819,11 @@ int main(int argc, char **argv) {
 			render();
 			if(automove()) {
 				needssolving = 1;
-				usleep(automove_delay);
+				if (!skipdelay)
+					usleep(automove_delay);
+				skipdelay = 0;
 			} else {
+				skipdelay = 0;
 				break;
 			}
 		}
