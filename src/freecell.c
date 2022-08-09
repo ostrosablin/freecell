@@ -74,6 +74,7 @@ int highlight = 0;
 int adjacent = 0;
 int animate = 1;
 int skipdelay = 0;
+int solvable_check = 0;
 int automove_delay = AUTOMOVE_DELAY;
 
 unsigned int seed;
@@ -291,7 +292,7 @@ size_t board_to_fcsolve(char *buf) {
 	return offset;
 }
 
-void solveboard() {
+int solveboard() {
 	char buf[256];
 	size_t size;
 	int p_stdin[2], p_stdout[2];
@@ -300,7 +301,7 @@ void solveboard() {
 	FILE *stdout;
 	int status;
 
-	if (solver >= SOLVER_NOTINSTALLED) return;
+	if (solver >= SOLVER_NOTINSTALLED) return solver;
 
 	solver = SOLVER_WORKING;
 	render();
@@ -309,13 +310,13 @@ void solveboard() {
 
 	if (pipe(p_stdin) != 0 || pipe(p_stdout) != 0) {
 		solver = SOLVER_ERROR;
-		return;
+		return solver;
 	}
 
 	pid = fork();
 	if (pid < 0) {
 		solver = SOLVER_ERROR;
-		return;
+		return solver;
 	}
 	else if (pid == 0)
 	{
@@ -367,6 +368,8 @@ void solveboard() {
 	if (status) {
 		solver = SOLVER_ERROR;
 	}
+
+	return solver;
 }
 
 int mayautomove(struct card *c) {
@@ -510,11 +513,10 @@ void metamove(struct column *scol, int seln, struct column *dcol, int *freecells
 	skipdelay = 1;
 	struct move *tempmovelist = 0;
 	nfree = popcount(*freecells) + 1;
-	mfree = popcount(freecolumns);
 	submove = seln - nfree;
 
-
 	while (submove > 0) {
+		mfree = popcount(freecolumns);
 		if (submove <= mfree * nfree)
 		{
 			tempmove = (submove + mfree - 1) / mfree;
@@ -533,7 +535,10 @@ void metamove(struct column *scol, int seln, struct column *dcol, int *freecells
 		}
 
 		nextcol = rightmostbit(freecolumns);
-		nextcol = (nextcol >= 0)? nextcol : 0;
+		if (nextcol < 0) {
+			printf("\rmetamove: no free columns\n");
+			exit(1);
+		}
 		freecolumns &= ~(1 << nextcol);
 
 		pushmove(&tempmovelist, &column[nextcol], nseln, dcol);
@@ -568,7 +573,7 @@ void metamove(struct column *scol, int seln, struct column *dcol, int *freecells
 	}
 
 	if (!scol->ncard) {
-		for(int i = 0; i < 8; i--) {
+		for(int i = 0; i < 8; i++) {
 			if(&column[i] == dcol) {
 				freecolumns |= (1 << i);
 				break;
@@ -708,6 +713,8 @@ void usage() {
 	printf("\n");
 	printf("-a       --adjacent     Highlight cards adjacent to current selection.\n");
 	printf("\n");
+	printf("-c       --solvable     Skip unsolvable deals (implies -S).\n");
+	printf("\n");
 	printf("-h       --help         Displays this information.\n");
 	printf("-V       --version      Displays brief version information.\n");
 	exit(0);
@@ -722,6 +729,7 @@ int main(int argc, char **argv) {
 		{"instant", 0, 0, 'i'},
 		{"highlight", 0, 0, 'H'},
 		{"adjacent", 0, 0, 'a'},
+		{"solvable", 0, 0, 'c'},
 		{"suites", 1, 0, 's'},
 		{"delay", 1, 0, 'd'},
 		{0, 0, 0, 0}
@@ -733,7 +741,7 @@ int main(int argc, char **argv) {
 	int needssolving = 1;
 
 	do {
-		opt = getopt_long(argc, argv, "hVeSiHas:d:", longopts, 0);
+		opt = getopt_long(argc, argv, "hVeSiHacs:d:", longopts, 0);
 		switch(opt) {
 			case 0:
 			case 'h':
@@ -767,6 +775,8 @@ int main(int argc, char **argv) {
 			case 'a':
 				adjacent = 1;
 				break;
+			case 'c':
+				solvable_check = 1;
 			case 'S':
 				switch (WEXITSTATUS(system("fc-solve --version >/dev/null 2>&1"))) {
 					case 127:
@@ -794,6 +804,13 @@ int main(int argc, char **argv) {
 
 	newgame();
 	dealgame(seed);
+
+	if (solver < SOLVER_NOTINSTALLED && solvable_check) {
+		if (solveboard() == SOLVER_UNSOLVABLE) {
+			printf("Deal #%d is not solvable\n", seed);
+			return 0;
+		}
+	}
 
 	initscr();
 	noecho();
@@ -836,7 +853,7 @@ int main(int argc, char **argv) {
 			mvaddstr(3, 17, str);
 			move(5, 43);
 			refresh();
-			usleep(automove_delay);
+			usleep(50000);
 			for(i = 0; i < strlen(str); i++) {
 				attrset(A_BOLD | COLOR_PAIR(4));
 				if(i) mvaddch(3, 17 + i - 1, str[i - 1]);

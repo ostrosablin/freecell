@@ -23,7 +23,7 @@ And then, with following command, you'll be able to start with deal #0 and conti
 * Step-by-step metamove animation. You can see exactly how metamoves are performed. If you don't want animations, though, you can specify -i (--instant) option. Also, you can adjust animation delay (in microseconds) via -d (--delay) option.
 * Accidental quit protection. Now hitting "q" doesn't instantly terminate the game, instead it asks you to hit "q" again if you really meant to quit game.
 * Option -H (--highlight) to highlight next card of a suit to move to foundation, so that you won't have hard time tracking down the aces at the beginning of game. Also add -a (--adjacent) option to highlight cards adjacent to current selection.
-* Supports solvability check via fc-solve. Enable fc-solve support with -S (--solver) option. No more getting stuck with dead-end unsolvable configurations for hours. After each move, solver will check and report whether this board is still solvable, or if it is game over and it's time to undo or restart.
+* Supports solvability check via fc-solve. Enable fc-solve support with -S (--solver) option. No more getting stuck with dead-end unsolvable configurations for hours. After each move, solver will check and report whether this board is still solvable, or if it is game over and it's time to undo or restart. You can also add -c (--solvable) to make sure game will never throw an unsolvable deal at you (implies -S).
 
 This requires to install fc-solve. You can install it on Debian/Ubuntu based distros with following command.
 
