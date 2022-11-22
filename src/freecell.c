@@ -74,6 +74,7 @@ int highlight = 0;
 int adjacent = 0;
 int animate = 1;
 int skipdelay = 0;
+int find = 0;
 int solvable_check = 0;
 int automove_delay = AUTOMOVE_DELAY;
 
@@ -145,14 +146,17 @@ void cardstr(struct card *c, int sel) {
 		}
 	}
 
-	if (highlight) {
+	if (highlight && !find) {
 		if ((!wselected && !selected) || !adjacent) {
 			int n = pile[c->kind] ? pile[c->kind]->value + 1 : 1;
 			if(c->value == n)
 				attron(A_BOLD | A_UNDERLINE);
 		}
 	}
-	if (adjacent) {
+	if (find && c->value == find) {
+	    attron(A_BOLD | A_UNDERLINE);
+	}
+	if (adjacent && !find) {
 		if (wselected && (c->kind & 1) != (work[selcol]->kind & 1)) {
 			if (c->value == work[selcol]->value + 1 ||
 				c->value == work[selcol]->value - 1) {
@@ -254,6 +258,7 @@ void render() {
 		mvaddstr(7 + height, 0, buf);
 	}
 	move(5 + height, 43);
+	find = 0;
 	refresh();
 }
 
@@ -903,6 +908,11 @@ int main(int argc, char **argv) {
 			} else if(c == 'u') {
 				popundo();
 				needssolving = 1;
+			} else if(c == 's') {
+				if (arg > 0 && arg <= 13) {
+				    find = arg;
+				    arg = 0;
+				}
 			} else if(c == '?') {
 				helpscreen();
 			} else if(c == 10 || c == 13 || c == KEY_ENTER) {
