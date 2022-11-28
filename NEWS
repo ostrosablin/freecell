@@ -1,3 +1,6 @@
+1.2.4	Add option to declare game over if you have stumbled into dead-end
+	situation and solver knows that game is already lost.
+
 1.2.3	Add support to find specific card rank by typing numeric rank,
 	followed by "s".
 

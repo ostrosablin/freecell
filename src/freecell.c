@@ -76,6 +76,7 @@ int animate = 1;
 int skipdelay = 0;
 int find = 0;
 int solvable_check = 0;
+int gameover_check = 0;
 int automove_delay = AUTOMOVE_DELAY;
 
 unsigned int seed;
@@ -259,6 +260,29 @@ void render() {
 	}
 	move(5 + height, 43);
 	find = 0;
+	refresh();
+}
+
+void endanim(int win) {
+	int i;
+	char *str = win ? "WELL DONE!" : "GAME OVER!";
+	attrset(A_BOLD | COLOR_PAIR(win ? 4 : 6));
+	mvaddstr(3, 17, str);
+	move(5, 43);
+	refresh();
+	usleep(50000);
+	for(i = 0; i < strlen(str); i++) {
+		attrset(A_BOLD | COLOR_PAIR(win ? 4 : 6));
+		if(i) mvaddch(3, 17 + i - 1, str[i - 1]);
+		attrset(A_BOLD);
+		mvaddch(3, 17 + i, str[i]);
+		move(5, 43);
+		refresh();
+		usleep(100000);
+	}
+	attrset(A_BOLD | COLOR_PAIR(win ? 4 : 6));
+	mvaddstr(3, 17, str);
+	move(5, 43);
 	refresh();
 }
 
@@ -720,6 +744,8 @@ void usage() {
 	printf("\n");
 	printf("-c       --solvable     Skip unsolvable deals (implies -S).\n");
 	printf("\n");
+	printf("-g       --gameover     Game over if dead end is reached (implies -c).\n");
+	printf("\n");
 	printf("-h       --help         Displays this information.\n");
 	printf("-V       --version      Displays brief version information.\n");
 	exit(0);
@@ -735,6 +761,7 @@ int main(int argc, char **argv) {
 		{"highlight", 0, 0, 'H'},
 		{"adjacent", 0, 0, 'a'},
 		{"solvable", 0, 0, 'c'},
+		{"gameover", 0, 0, 'g'},
 		{"suites", 1, 0, 's'},
 		{"delay", 1, 0, 'd'},
 		{0, 0, 0, 0}
@@ -746,7 +773,7 @@ int main(int argc, char **argv) {
 	int needssolving = 1;
 
 	do {
-		opt = getopt_long(argc, argv, "hVeSiHacs:d:", longopts, 0);
+		opt = getopt_long(argc, argv, "hVeSiHacgs:d:", longopts, 0);
 		switch(opt) {
 			case 0:
 			case 'h':
@@ -780,6 +807,8 @@ int main(int argc, char **argv) {
 			case 'a':
 				adjacent = 1;
 				break;
+			case 'g':
+				gameover_check = 1;
 			case 'c':
 				solvable_check = 1;
 			case 'S':
@@ -850,28 +879,14 @@ int main(int argc, char **argv) {
 			}
 		}
 
-		if(gameover()) {
-			int i;
-			char *str = "WELL DONE!";
+		if (gameover_check && solver == SOLVER_UNSOLVABLE) {
+			endanim(0);
+			running = 0;
+			break;
+		}
 
-			attrset(A_BOLD | COLOR_PAIR(4));
-			mvaddstr(3, 17, str);
-			move(5, 43);
-			refresh();
-			usleep(50000);
-			for(i = 0; i < strlen(str); i++) {
-				attrset(A_BOLD | COLOR_PAIR(4));
-				if(i) mvaddch(3, 17 + i - 1, str[i - 1]);
-				attrset(A_BOLD);
-				mvaddch(3, 17 + i, str[i]);
-				move(5, 43);
-				refresh();
-				usleep(100000);
-			}
-			attrset(A_BOLD | COLOR_PAIR(4));
-			mvaddstr(3, 17, str);
-			move(5, 43);
-			refresh();
+		if(gameover()) {
+			endanim(1);
 			break;
 		}
 
