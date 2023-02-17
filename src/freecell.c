@@ -326,6 +326,7 @@ int solveboard() {
 	size_t size;
 	int p_stdin[2], p_stdout[2];
 	pid_t pid;
+	pid_t wpid;
 	char *line = NULL;
 	FILE *stdout;
 	int status;
@@ -389,12 +390,24 @@ int solveboard() {
 		fclose(stdout);
 	}
 
-	if (pid != wait(&status)) {
-		solver = SOLVER_ERROR;
+	while ((wpid = wait(&status)) > 0) {
+		if (!pid || pid != wpid) {
+			continue;
+		}
+
+		if (WIFEXITED(status)) {
+			status = WEXITSTATUS(status);
+			if (status) {
+				solver = SOLVER_ERROR;
+			}
+		}
+		else {
+			solver = SOLVER_ERROR;
+		}
+		pid = 0;
 	}
 
-	status = WEXITSTATUS(status);
-	if (status) {
+	if (pid) {
 		solver = SOLVER_ERROR;
 	}
 
@@ -982,7 +995,21 @@ int main(int argc, char **argv) {
 				struct column *col = &column[c - 'a'];
 				int may = 0;
 
-				if(selected) {
+				if(selected && c - 'a' == selcol) {
+					int maxn, i;
+
+					seln++;
+					maxn = 1;
+					for(i = column[selcol].ncard - 1; i > 0; i--) {
+						if(((column[selcol].card[i]->kind & 1) != (column[selcol].card[i - 1]->kind & 1))
+						&& (column[selcol].card[i]->value + 1 == column[selcol].card[i - 1]->value)) {
+							maxn++;
+						} else {
+							break;
+						}
+					}
+					if(seln > maxn) selected = 0;
+				} else if(selected) {
 					int nfree = 1, mfree = 0, i;
 
 					for(i = 0; i < 4; i++) {

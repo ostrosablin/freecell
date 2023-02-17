@@ -1,3 +1,7 @@
+1.2.5	Add support for multiselecting cards in column by repeatedly pressing
+	column key, rather only with vi-style number prefixes. Each press will
+	add one more card to selection if next card is in correct order.
+
 1.2.4	Add option to declare game over if you have stumbled into dead-end
 	situation and solver knows that game is already lost.
 

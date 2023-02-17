@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 # AC_PREREQ(2.61)
-AC_INIT([freecell],[1.2.4],[tmp6154@yandex.ru])
+AC_INIT([freecell],[1.2.5],[tmp6154@yandex.ru])
 
 AM_INIT_AUTOMAKE
 
