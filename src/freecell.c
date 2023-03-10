@@ -616,7 +616,7 @@ void metamove(struct column *scol, int seln, struct column *dcol, int *freecells
 
 	if (!scol->ncard) {
 		for(int i = 0; i < 8; i++) {
-			if(&column[i] == dcol) {
+			if(&column[i] == scol) {
 				freecolumns |= (1 << i);
 				break;
 			}
